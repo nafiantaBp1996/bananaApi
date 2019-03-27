@@ -17,7 +17,18 @@ class Dataset extends REST_Controller {
 
         if (write_file('./assets/dataset/'.$images_name, $decodeString))
                 {
-                    $img =$this->resize_image_max('./assets/dataset/'.$images_name, 450,600 );
+                    $im = ImageCreateFromJpeg('./assets/dataset/'.$images_name);
+                    $w = imagesx($im); //current width
+                    $h = imagesy($im);
+                    imagedestroy($im);
+                    if ($w>$h) {
+                        $img =$this->resize_image_max('./assets/dataset/'.$images_name, 300,224 );
+                    }
+                    else
+                    {
+                        $img =$this->resize_image_max('./assets/dataset/'.$images_name, 224,300 );
+                    }
+                    
                     imagejpeg($img,'./assets/dataset/'.$images_name);
                     
                     $this->response(array(
@@ -32,9 +43,9 @@ class Dataset extends REST_Controller {
     }
 
     function index_get() {
-        $this->response(array(
-            "image"=>"hai.jpg",
-            ), 200);
+        $this->load->model('Dataset_Model');
+        $data = $this->Dataset_Model->loadDataset();
+        $this->response($data, 200);
     }
 
     function resize_image_max($image,$max_width,$max_height) {
