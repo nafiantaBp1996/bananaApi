@@ -38,7 +38,9 @@ class Ekstraksi extends REST_Controller
           $imgh = imagesy($im);
           $tres = $this->tres($im,$imgw,$imgh,100);
           $hsi = $this->getHsi($im,$imgw,$imgh);
-          $this->response($hsi, 200);
+          $glcm = $this->glcm($im,$imgw,$imgh);
+          $this->response(array('glcm'=>$glcm,'hsi'=>$hsi), 200);
+          //$this->response($hsi, 200);
         }
     }
 
@@ -123,6 +125,10 @@ class Ekstraksi extends REST_Controller
                             $H=2*pi()-$H;
                             $H=$H*180/pi();
                         }
+                        else
+                        {
+                            $H=$H*180/pi(); 
+                        }
                         $S = (1-(3*min($r,$g,$b)))*100;
                     }
                     $Red += $r;
@@ -144,6 +150,133 @@ class Ekstraksi extends REST_Controller
                          'pixel' => $pixels);
         return $dataHsi;
     }
+
+    function glcm($im,$imgw,$imgh){
+      $imgw=$imgw-1;
+      $imgh=$imgh-1;
+      $glcm0=null;
+      $glcm45=null;
+      $glcm90=null;
+      $glcm135=null;
+      $totalpixel=0;
+      $eksglcm0=array('indeks'=>'glcm0','contras' => 0,'homogen' => 0,'energy' => 0,'entropy' => 0,'korelasi' => 0);
+      $eksglcm45=array('indeks'=>'glcm45','contras' => 0,'homogen' => 0,'energy' => 0,'entropy' => 0,'korelasi' => 0);  
+      $eksglcm90=array('indeks'=>'glcm90','contras' => 0,'homogen' => 0,'energy' => 0,'entropy' => 0,'korelasi' => 0);
+      $eksglcm135=array('indeks'=>'glcm135','contras' => 0,'homogen' => 0,'energy' => 0,'entropy' => 0,'korelasi' => 0);
+      $eksglcmavg=array('indeks'=>'glcmavgs','contras' => 0,'homogen' => 0,'energy' => 0,'entropy' => 0,'korelasi' => 0);
+      for ($i=0; $i < 16; $i++) {
+        for ($j=0; $j < 16; $j++) { 
+          $glcm0[$i][$j]=0;
+          $glcm45[$i][$j]=0;
+          $glcm90[$i][$j]=0;
+          $glcm135[$i][$j]=0;
+         } 
+      }
+
+      for ($i=1; $i<$imgw; $i++){
+          for ($j=1; $j<$imgh; $j++){
+              $rgb = ImageColorAt($im, $i, $j); 
+              $rgb0 = ImageColorAt($im, $i+1, $j);
+              $rgb45 = ImageColorAt($im, $i+1, $j+1);
+              $rgb90 = ImageColorAt($im, $i, $j+1);
+              $rgb135 = ImageColorAt($im, $i-1, $j+1);
+
+              $rr = ($rgb >> 16) & 0xFF;
+              $gg = ($rgb >> 8) & 0xFF;
+              $bb = $rgb & 0xFF;
+
+              $r0 = ($rgb0 >> 16) & 0xFF;
+              $g0 = ($rgb0 >> 8) & 0xFF;
+              $b0 = $rgb0 & 0xFF;
+
+              $r45 = ($rgb45 >> 16) & 0xFF;
+              $g45 = ($rgb45 >> 8) & 0xFF;
+              $b45 = $rgb45 & 0xFF;
+
+              $r90 = ($rgb90 >> 16) & 0xFF;
+              $g90 = ($rgb90 >> 8) & 0xFF;
+              $b90 = $rgb90 & 0xFF;
+
+              $r135 = ($rgb135 >> 16) & 0xFF;
+              $g135 = ($rgb135 >> 8) & 0xFF;
+              $b135 = $rgb135 & 0xFF;
+
+              $g = round(($rr + $gg + $bb) / 3);
+              $gray = $this->quantisasi16(round(($rr + $gg + $bb) / 3));
+              $gray0 = $this->quantisasi16(round(($r0 + $g0 + $b0) / 3));
+              $gray45 = $this->quantisasi16(round(($r45 + $g45 + $b45) / 3));
+              $gray90 = $this->quantisasi16(round(($r90 + $g90 + $b90) / 3));
+              $gray135 = $this->quantisasi16(round(($r135 + $g135 + $b135) / 3));                
+
+              if ($gray!=255) {
+                $glcm0[$gray][$gray0]+=1;
+                $totalpixel+=2;
+                $glcm45[$gray][$gray45]+=1;
+                $glcm90[$gray][$gray90]+=1;
+                $glcm135[$gray][$gray135]+=1; 
+              }
+          }
+      }
+
+      for ($i=0; $i < 16; $i++) {
+        for ($j=0; $j < 16; $j++) {
+          //////////0derajat
+          $glcmTrans0[$i][$j] = ($glcm0[$i][$j]+$glcm0[$j][$i])/$totalpixel;
+          $eksglcm0['contras'] += $glcmTrans0[$i][$j]*pow($i-$j,2);
+          $eksglcm0['homogen'] += $glcmTrans0[$i][$j]/(1+pow($i-$j,2));
+          $eksglcm0['energy'] += pow($glcmTrans0[$i][$j],2);
+          if ($glcmTrans0[$i][$j]!=0) {
+            $eksglcm0['entropy'] += -(log($glcmTrans0[$i][$j])*$glcmTrans0[$i][$j]);
+            
+            $eksglcm0['korelasi'] += $glcmTrans0[$i][$j] * (($i-$glcmTrans0[$i][$j])*($j-$glcmTrans0[$i][$j]))/(pow($i-$glcmTrans0[$i][$j],2)*pow($j-$glcmTrans0[$i][$j],2));
+          }
+          //////////45derajat
+          $glcmTrans45[$i][$j]= ($glcm45[$i][$j]+$glcm45[$j][$i])/$totalpixel;
+          $eksglcm45['contras'] += $glcmTrans45[$i][$j]*pow($i-$j,2);
+          $eksglcm45['homogen'] += $glcmTrans45[$i][$j]/(1+pow($i-$j,2));
+          $eksglcm45['energy'] += pow($glcmTrans45[$i][$j],2);
+          if ($glcmTrans45[$i][$j]!=0) {
+            $eksglcm45['entropy'] += -(log($glcmTrans45[$i][$j])*$glcmTrans45[$i][$j]);
+            
+            $eksglcm45['korelasi'] += $glcmTrans45[$i][$j] * (($i-$glcmTrans45[$i][$j])*($j-$glcmTrans45[$i][$j]))/(pow($i-$glcmTrans45[$i][$j],2)*pow($j-$glcmTrans45[$i][$j],2));
+          }
+          //////////90derajat
+          $glcmTrans90[$i][$j]= ($glcm90[$i][$j]+$glcm90[$j][$i])/$totalpixel;
+          $eksglcm90['contras'] += $glcmTrans90[$i][$j]*pow($i-$j,2);
+          $eksglcm90['homogen'] += $glcmTrans90[$i][$j]/(1+pow($i-$j,2));
+          $eksglcm90['energy'] += pow($glcmTrans90[$i][$j],2);
+          if ($glcmTrans90[$i][$j]!=0) {
+            $eksglcm90['entropy'] += -(log($glcmTrans90[$i][$j])*$glcmTrans90[$i][$j]);
+            
+            $eksglcm90['korelasi'] += $glcmTrans90[$i][$j] * (($i-$glcmTrans90[$i][$j])*($j-$glcmTrans90[$i][$j]))/(pow($i-$glcmTrans90[$i][$j],2)*pow($j-$glcmTrans90[$i][$j],2));
+          }
+          //////////135derajat
+          $glcmTrans135[$i][$j]= ($glcm135[$i][$j]+$glcm135[$j][$i])/$totalpixel;
+          $eksglcm135['contras'] += $glcmTrans135[$i][$j]*pow($i-$j,2);
+          $eksglcm135['homogen'] += $glcmTrans135[$i][$j]/(1+pow($i-$j,2));
+          $eksglcm135['energy'] += pow($glcmTrans135[$i][$j],2);
+          if ($glcmTrans135[$i][$j]!=0) {
+            $eksglcm135['entropy'] += -(log($glcmTrans135[$i][$j])*$glcmTrans135[$i][$j]);
+            
+            $eksglcm135['korelasi'] += $glcmTrans135[$i][$j] * (($i-$glcmTrans135[$i][$j])*($j-$glcmTrans135[$i][$j]))/(pow($i-$glcmTrans135[$i][$j],2)*pow($j-$glcmTrans135[$i][$j],2));
+          }
+        } 
+      }
+
+      $eksglcmavg['contras']=($eksglcm0['contras']+$eksglcm45['contras']+$eksglcm90['contras']+$eksglcm135['contras'])/4;
+      $eksglcmavg['homogen']=($eksglcm0['homogen']+$eksglcm45['homogen']+$eksglcm90['homogen']+$eksglcm135['homogen'])/4;
+      $eksglcmavg['energy']=($eksglcm0['energy']+$eksglcm45['energy']+$eksglcm90['energy']+$eksglcm135['energy'])/4;
+      $eksglcmavg['entropy']=($eksglcm0['entropy']+$eksglcm45['entropy']+$eksglcm90['entropy']+$eksglcm135['entropy'])/4;
+      $eksglcmavg['korelasi']=($eksglcm0['korelasi']+$eksglcm45['korelasi']+$eksglcm90['korelasi']+$eksglcm135['korelasi'])/4;
+
+      return array('glcm0'=>$eksglcm0,'glcm45'=>$eksglcm45,'glcm90'=>$eksglcm90,'glcm135'=>$eksglcm135,'glcmavg'=>$eksglcmavg);
+    }
+
+  function quantisasi16($g){
+    $qu = floor($g/16);    
+    return $qu; 
+  }
+
     function histo($im,$imgw,$imgh)
     {
             for ($i=0; $i <256 ; $i++) { 

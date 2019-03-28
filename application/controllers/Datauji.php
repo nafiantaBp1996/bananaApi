@@ -2,11 +2,10 @@
  
 require APPPATH . '/libraries/REST_Controller.php';
  
-class Dataset extends REST_Controller {
+class Datauji extends REST_Controller {
     function __construct($config = 'rest') {
         parent::__construct($config);
     }
-
     function index_post() {
         $images = $this->post('string_encoded');
 
@@ -15,24 +14,26 @@ class Dataset extends REST_Controller {
         $decodeString = base64_decode($images);
         $this->load->helper('file');
 
-        if (write_file('./assets/dataset/'.$images_name, $decodeString)){
-                $im = ImageCreateFromJpeg('./assets/dataset/'.$images_name);
+        if (write_file('./assets/datauji/'.$images_name, $decodeString)){
+                $im = ImageCreateFromJpeg('./assets/datauji/'.$images_name);
                 $w = imagesx($im); //current width
                 $h = imagesy($im);
                 imagedestroy($im);
                 if ($w>$h) {
-                    $img =$this->resize_image_max('./assets/dataset/'.$images_name, 300,224 );
+                    $img =$this->resize_image_max('./assets/datauji/'.$images_name, 300,224 );
                 }
                 else
                 {
-                    $img =$this->resize_image_max('./assets/dataset/'.$images_name, 224,300 );
+                    $img =$this->resize_image_max('./assets/datauji/'.$images_name, 224,300 );
                 }
                 
-                imagejpeg($img,'./assets/dataset/'.$images_name);
+                imagejpeg($img,'./assets/datauji/'.$images_name);
                 
                 $this->response(array(
                 "status"=>"sukses",
-                "filename"=>base_url().'assets/dataset/'.$images_name), 200);
+                "filename"=>base_url().'assets/datauji/'.$images_name), 200);
+
+                $this->load->library('../controllers/whathever');
             }
             else{
                 $this->response(array(
@@ -41,9 +42,6 @@ class Dataset extends REST_Controller {
     }
 
     function index_get(){
-        $this->load->model('Dataset_Model');
-        $data = $this->Dataset_Model->loadDataset();
-        $this->response($data, 200);
     }
     ///////////////function tambahan
     function resize_image_max($image,$max_width,$max_height) {
@@ -71,5 +69,5 @@ class Dataset extends REST_Controller {
             imagecopyresampled($new_image,$im, 0, 0, 0, 0, $new_w, $new_h, $w, $h);
             return $new_image;
         }
-    }
+    }   
 }
