@@ -20,6 +20,7 @@ class Ekstraksi extends REST_Controller
                    'entropy' => $this->post('entroInp'),
                    'energy' => $this->post('energyInp'),
                    'homogenity'=>$this->post('homogenInp'),
+                   'corelation'=>$this->post('corelationInp'),
                    'kematangan' => $this->post('kematanganInp'),
                    'prediksi' => $this->post('prediksiInp'));
       $this->load->model('Dataset_model');
@@ -29,6 +30,8 @@ class Ekstraksi extends REST_Controller
 
     function index_get() {
         $images = $this->get('image');
+        $id = $this->get('id');
+
         if ($images==null) {
           $this->response(array('status' => 'no Image'));
         }
@@ -36,13 +39,59 @@ class Ekstraksi extends REST_Controller
           $im = ImageCreateFromJpeg($images); 
           $imgw = imagesx($im);
           $imgh = imagesy($im);
-          $tres = $this->tres($im,$imgw,$imgh,100);
-          $hsi = $this->getHsi($im,$imgw,$imgh);
+          // $tres = $this->tres($im,$imgw,$imgh,100);
+          // $hsi = $this->getHsi($im,$imgw,$imgh);
           $glcm = $this->glcm($im,$imgw,$imgh);
-          $this->response(array('glcm'=>$glcm,'hsi'=>$hsi), 200);
-          //$this->response($hsi, 200);
+          $avgRgb= $this->avgRgb($im,$imgw,$imgh,90);
+          $hsi = $this->getHsiAvg($avgRgb['red'],$avgRgb['green'],$avgRgb['blue']);
+          //$this->response($dataHsi, 200);
+          if ($id=='android') {
+            $datas=array('hue'=>$hsi['H'],
+                                  'saturation'=>$hsi['S'],
+                                  'intensity'=>$hsi['I'],
+                                  'contras'=>$glcm['glcmavg']['contras'],
+                                  'energy'=>$glcm['glcmavg']['energy'],
+                                  'homogenity'=>$glcm['glcmavg']['homogen'],
+                                  'entropy'=>$glcm['glcmavg']['entropy'],
+                                  'corelation'=>$glcm['glcmavg']['korelasi']);
+            $json_respnse=$this->curl->simple_get('http://localhost/bananaApi/index.php/Klasifikasi', $datas, array(CURLOPT_BUFFERSIZE => 10));
+            $data= json_decode($json_respnse);
+            $this->response($data, 200);
+          }
+          else{
+            //$this->response($avgRgb, 200);
+            $this->response(array('glcm'=>$glcm,'hsi'=>$hsi), 200);
+          }
         }
     }
+
+    function avgRgb($im,$imgw,$imgh,$batas)
+      {
+        $pixels=0;
+        $redd=0;
+        $greenn=0;
+        $bluee=0;
+        for ($i=0; $i<$imgw; $i++)
+          {
+            for ($j=0; $j<$imgh; $j++)
+            {
+              $rgb = ImageColorAt($im, $i, $j); 
+              $rr = ($rgb >> 16) & 0xFF;
+              $gg = ($rgb >> 8) & 0xFF;
+              $bb = $rgb & 0xFF;
+              $g = round(($rr + $gg + $bb) / 3);
+              if (($rr>=$batas && $gg>=$batas && $bb<$batas)||$g<$batas) {
+                      $redd+=$rr;
+                      $bluee+=$bb;
+                      $greenn+=$gg;
+                      $pixels+=1;
+                      //$val = imagecolorallocate($im, $rr, $gg, $bb);     
+              }
+            }
+          } 
+          
+          return array("red"=>$redd/$pixels,"green"=>$greenn/$pixels,"blue"=>$bluee/$pixels,"pixel"=>$pixels); 
+      }
 
     function tres($im,$imgw,$imgh,$batas)
       {
@@ -67,6 +116,72 @@ class Ekstraksi extends REST_Controller
           
           return $im; 
       }
+
+    function getHsiAvg($rr,$gg,$bb){
+        $Red = 0; $Green = 0; $Blue = 0;
+        $Hue = 0; $Satur = 0; $Inten = 0;
+        $pixels = 0;
+        $rt= $rr + $gg + $bb;
+        $gray=round(($rr + $gg + $bb) / 3,6);
+        if ($rt==0) {
+            $r = 0;
+            $g = 0;
+            $b = 0;
+        }
+        else
+        {
+            $r = $rr/$rt;
+            $g = $gg/$rt;
+            $b = $bb/$rt;
+        }
+        
+        $minData = min($rr,$gg,$bb);
+        $maxData = max($rr,$gg,$bb);
+        $delta = $maxData-$minData;
+
+        $I = $gray;
+
+        if ($r==$g && $g==$b) {
+            $H = 0;
+            $S = 0;
+        }
+        else{
+            $w = 0.5 *(($r-$g)+($r-$b))/sqrt((($r-$g)*($r-$g))+(($r-$b)*($g-$b)));
+
+            if ($w>1) {
+                $w = 1;
+            }
+            if ($w<-1) {
+                $w=-1;
+            }
+
+            $H = acos($w);
+
+            if ($b>$g) {
+                $H=2*pi()-$H;
+                $H=$H*180/pi();
+            }
+            else
+            {
+                $H=$H*180/pi(); 
+            }
+            $S = (1-(3*min($r,$g,$b)))*100;
+        }
+        $Red = $r;
+        $Green = $g;
+        $Blue = $b;
+
+        $Hue = $H;
+        $Satur = $S;
+        $Inten = $I;            
+        $dataHsi = array('H' => round($Hue,6),
+                         'S' => round($Satur,6),
+                         'I' => round($Inten,6),
+                         'R' => round($Red,6),
+                         'G' => round($Green,6),
+                         'B' => round($Blue,6));
+        return $dataHsi;
+    }
 
     function getHsi($im,$imgw,$imgh){
         $Red = 0; $Green = 0; $Blue = 0;
@@ -228,7 +343,7 @@ class Ekstraksi extends REST_Controller
           if ($glcmTrans0[$i][$j]!=0) {
             $eksglcm0['entropy'] += -(log($glcmTrans0[$i][$j])*$glcmTrans0[$i][$j]);
             
-            $eksglcm0['korelasi'] += $glcmTrans0[$i][$j] * (($i-$glcmTrans0[$i][$j])*($j-$glcmTrans0[$i][$j]))/(pow($i-$glcmTrans0[$i][$j],2)*pow($j-$glcmTrans0[$i][$j],2));
+            // $eksglcm0['korelasi'] += $glcmTrans0[$i][$j] * (($i-$glcmTrans0[$i][$j])*($j-$glcmTrans0[$i][$j]))/(pow($i-$glcmTrans0[$i][$j],2)*pow($j-$glcmTrans0[$i][$j],2));
           }
           //////////45derajat
           $glcmTrans45[$i][$j]= ($glcm45[$i][$j]+$glcm45[$j][$i])/$totalpixel;
@@ -238,7 +353,7 @@ class Ekstraksi extends REST_Controller
           if ($glcmTrans45[$i][$j]!=0) {
             $eksglcm45['entropy'] += -(log($glcmTrans45[$i][$j])*$glcmTrans45[$i][$j]);
             
-            $eksglcm45['korelasi'] += $glcmTrans45[$i][$j] * (($i-$glcmTrans45[$i][$j])*($j-$glcmTrans45[$i][$j]))/(pow($i-$glcmTrans45[$i][$j],2)*pow($j-$glcmTrans45[$i][$j],2));
+            // $eksglcm45['korelasi'] += $glcmTrans45[$i][$j] * (($i-$glcmTrans45[$i][$j])*($j-$glcmTrans45[$i][$j]))/(pow($i-$glcmTrans45[$i][$j],2)*pow($j-$glcmTrans45[$i][$j],2));
           }
           //////////90derajat
           $glcmTrans90[$i][$j]= ($glcm90[$i][$j]+$glcm90[$j][$i])/$totalpixel;
@@ -248,7 +363,7 @@ class Ekstraksi extends REST_Controller
           if ($glcmTrans90[$i][$j]!=0) {
             $eksglcm90['entropy'] += -(log($glcmTrans90[$i][$j])*$glcmTrans90[$i][$j]);
             
-            $eksglcm90['korelasi'] += $glcmTrans90[$i][$j] * (($i-$glcmTrans90[$i][$j])*($j-$glcmTrans90[$i][$j]))/(pow($i-$glcmTrans90[$i][$j],2)*pow($j-$glcmTrans90[$i][$j],2));
+            // $eksglcm90['korelasi'] += $glcmTrans90[$i][$j] * (($i-$glcmTrans90[$i][$j])*($j-$glcmTrans90[$i][$j]))/(pow($i-$glcmTrans90[$i][$j],2)*pow($j-$glcmTrans90[$i][$j],2));
           }
           //////////135derajat
           $glcmTrans135[$i][$j]= ($glcm135[$i][$j]+$glcm135[$j][$i])/$totalpixel;
@@ -258,10 +373,62 @@ class Ekstraksi extends REST_Controller
           if ($glcmTrans135[$i][$j]!=0) {
             $eksglcm135['entropy'] += -(log($glcmTrans135[$i][$j])*$glcmTrans135[$i][$j]);
             
-            $eksglcm135['korelasi'] += $glcmTrans135[$i][$j] * (($i-$glcmTrans135[$i][$j])*($j-$glcmTrans135[$i][$j]))/(pow($i-$glcmTrans135[$i][$j],2)*pow($j-$glcmTrans135[$i][$j],2));
+            // $eksglcm135['korelasi'] += $glcmTrans135[$i][$j] * (($i-$glcmTrans135[$i][$j])*($j-$glcmTrans135[$i][$j]))/(pow($i-$glcmTrans135[$i][$j],2)*pow($j-$glcmTrans135[$i][$j],2));
           }
         } 
       }
+      for ($x=0; $x < 16; $x++) {
+        $imean0=0;
+        $imean45=0;
+        $imean90=0;
+        $imean135=0;
+        for ($y=0; $y < 16; $y++) {
+          $imean0+=$glcmTrans0[$x][$y];
+          $imean45+=$glcmTrans45[$x][$y];
+          $imean90+=$glcmTrans90[$x][$y];
+          $imean135+=$glcmTrans135[$x][$y];
+        }
+          $mean0[$x]=round($x*$imean0,10);
+          $mean45[$x]=round($x*$imean45,10);
+          $mean90[$x]=round($x*$imean90,10);
+          $mean135[$x]=round($x*$imean135,10);
+      }
+      $meansum0=array_sum($mean0);
+      $meansum45=array_sum($mean45);
+      $meansum90=array_sum($mean90);
+      $meansum135=array_sum($mean135);
+
+      for ($x=0; $x < 16; $x++) {
+        $var0=0;
+        $var45=0;
+        $var90=0;
+        $var135=0;
+        for ($y=0; $y < 16; $y++) {
+        $var0+=$glcmTrans0[$x][$y]*pow($x-$meansum0,2);
+        $var45+=$glcmTrans45[$x][$y]*pow($x-$meansum45,2);
+        $var90+=$glcmTrans90[$x][$y]*pow($x-$meansum90,2);
+        $var135+=$glcmTrans135[$x][$y]*pow($x-$meansum135,2);
+        }
+        $variance0[$x]=$var0;
+        $variance45[$x]=$var45;
+        $variance90[$x]=$var90;
+        $variance135[$x]=$var135;
+      }
+      $vari0=array_sum($variance0);
+      $vari45=array_sum($variance45);
+      $vari90=array_sum($variance90);
+      $vari135=array_sum($variance135);
+
+      // $cor0;$cor45;$cor90;$cor135;
+      for ($x=0; $x < 16; $x++) {
+        for ($y=0; $y < 16; $y++) {
+        $eksglcm0['korelasi']+=($glcmTrans0[$x][$y]*(($x-$meansum0)*($y-$meansum0)))/sqrt($vari0*$vari0);
+        $eksglcm45['korelasi']+=($glcmTrans45[$x][$y]*(($x-$meansum45)*($y-$meansum45)))/sqrt($vari45*$vari45);
+        $eksglcm90['korelasi']+=($glcmTrans90[$x][$y]*(($x-$meansum90)*($y-$meansum90)))/sqrt($vari90*$vari90);
+        $eksglcm135['korelasi']+=($glcmTrans135[$x][$y]*(($x-$meansum135)*($y-$meansum135)))/sqrt($vari135*$vari135);
+        }
+      }
+      
 
       $eksglcmavg['contras']=($eksglcm0['contras']+$eksglcm45['contras']+$eksglcm90['contras']+$eksglcm135['contras'])/4;
       $eksglcmavg['homogen']=($eksglcm0['homogen']+$eksglcm45['homogen']+$eksglcm90['homogen']+$eksglcm135['homogen'])/4;

@@ -41,8 +41,9 @@ class Dataset extends REST_Controller {
     }
 
     function index_get(){
+        $kat=$this->get('kategori');
         $this->load->model('Dataset_Model');
-        $data = $this->Dataset_Model->loadDataset();
+        $data = $this->Dataset_Model->loadDataset($kat);
         $this->response($data, 200);
     }
     ///////////////function tambahan
