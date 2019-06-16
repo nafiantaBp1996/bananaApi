@@ -2,6 +2,13 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Dataset_Model extends CI_Model {
+	
+	public function deleteData($id){
+		$this->db->where('id_dataset', $id);
+		$this->db->delete('dataset');
+
+		return "sukses";		
+	}
 	public function insertDataset($object){
 		$this->db->insert('dataset', $object);	
 	}

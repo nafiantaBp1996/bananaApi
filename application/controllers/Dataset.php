@@ -46,6 +46,14 @@ class Dataset extends REST_Controller {
         $data = $this->Dataset_Model->loadDataset($kat);
         $this->response($data, 200);
     }
+
+    function delete_post(){
+        $id=$this->post('id_dataset');
+        $this->load->model('Dataset_Model');
+        $data = $this->Dataset_Model->deleteData($id);
+        $this->response($data, 200);
+    }
+
     ///////////////function tambahan
     function resize_image_max($image,$max_width,$max_height) {
         $im = ImageCreateFromJpeg($image);

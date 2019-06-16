@@ -466,7 +466,7 @@ class Ekstraksi extends REST_Controller
     }
     function outsuOut($arrayHisto)
       {
-              $otsuValue = 130;
+          $otsuValue = 130;
           $fmax = -1.0;
           $m1;
           $m2;
